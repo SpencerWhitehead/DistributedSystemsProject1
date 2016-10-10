@@ -50,6 +50,9 @@ public class Node implements Runnable {
 
     public void takeCommand(String command){
         String[] com = parseCommand(command);
+        System.out.println("Parsed Command");
+//        System.out.println(com[0]+" "+com[1]);
+        System.out.println(com[0]);
         if(com.length == 2){
             runCommand(com[0], com[1], null);
         }
@@ -64,12 +67,11 @@ public class Node implements Runnable {
 
     public static void main(String[] args) throws Exception {
         Node n = new Node(4444, 1, null);
-        System.out.println("HELLO");
-//        Scanner scan = new Scanner(System.in);
-//        String com = scan.next();
-//        while(!com.equals("quit")){
-//            n.takeCommand(com);
-//            scan.next();
-//        }
+        Scanner scan = new Scanner(System.in);
+        String com = scan.nextLine();
+        while(!com.equals("quit")){
+            n.takeCommand(com);
+            com = scan.nextLine();
+        }
     }
 }
