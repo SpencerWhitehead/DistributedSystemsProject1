@@ -14,22 +14,23 @@ import java.util.concurrent.Executors;
 
 //*** for an inner class to use the methods of an outer class. Use Node.this.createFile().
 
-//public class Node implements Runnable {
 public class Node {
     private int portNum;	//Port Number on which the Node.java will be Listening to accept connection
     private int ID;	        //NodeID of the node
-    private HashMap<Integer, String> neighbors = new HashMap<>(); // Neighbor node IDs and IP addresses (nodeID, IP)
+    private HashMap<Integer, AddrPair> neighbors = new HashMap<>(); // Neighbor node IDs, IP addresses, and port (nodeID, (IP,port))
+//    private HashMap<Integer, String> neighbors = new HashMap<>(); // Neighbor node IDs and IP addresses (nodeID, IP)
 //    private HashMap<String, Integer> holders = new HashMap(); // Holders of each file (filename, holderID)
 //    private HashMap<String, Boolean> asked = new HashMap(); // Map to store which files have been requested (filename, asked)
 //    private HashMap<String, Boolean> state = new HashMap(); // Map to store which files are being used by this node (filename, inUse)
 //    private HashMap<String, Queue<Integer>> reqQ = new HashMap(); // Map to store request queue for each file
     private ConcurrentHashMap<String, Token> tokens = new ConcurrentHashMap<>();
 
-    public Node(int port, int ident, HashMap<Integer,String> neigh) {
+    public Node(int port, int ident) {
         this.portNum = port;
         this.ID = ident;
-        this.neighbors = neigh;
     }
+
+//    public void initializeNeighbors(HashMap<Integer, AddrPair> addrs)
 
     public void createFile(String fname, int nodeID) {
         if (!tokens.containsKey(fname)) {
@@ -61,6 +62,28 @@ public class Node {
         if (tokens.containsKey(fname)) {
             System.out.println("Reading "+fname+":");
             System.out.println(tokens.get(fname).getContents());
+        }
+    }
+
+    private void assignToken(String fname) {
+        Token t = tokens.get(fname);
+        if (t.getHolder() == ID && !t.getInUse() && !t.isReqQEmpty()) {
+            t.setHolder(t.deq());
+            t.setAsked(false);
+            if (t.getHolder() == ID) {
+                t.setInUse(true);
+            }
+            else {
+                String msg = MessageSender.formatMsg("TOK", t.getHolder(), t.getContents());
+                MessageSender.sendMsg(neighbors.get(t.getHolder()).addr, neighbors.get(t.getHolder()).port, msg);
+            }
+        }
+    }
+
+    private void sendRequest(String fname) {
+        Token t = tokens.get(fname);
+        if (t.getHolder() != ID && !t.isReqQEmpty() && !t.getAsked()) {
+            String msg = MessageSender.formatMsg("REQ", ID, fname);
         }
     }
 
@@ -166,19 +189,19 @@ public class Node {
             switch (m[0]){
                 case "NEW":
                     System.out.println("Creating "+m[2]+" file");
-                    createFile(m[1], Integer.parseInt(m[2]));
+                    Node.this.createFile(m[1], Integer.parseInt(m[2]));
                     break;
                 case "DEL":
                     System.out.println("Deleting file");
-                    deleteFile(m[2]);
+                    Node.this.deleteFile(m[2]);
                     break;
                 case "REQ":
                     System.out.println("Deleting file");
-                    deleteFile(m[2]);
+                    Node.this.deleteFile(m[2]);
                     break;
                 case "TOK":
                     System.out.println("Deleting file");
-                    deleteFile(m[2]);
+                    Node.this.deleteFile(m[2]);
                     break;
                 default:
                     System.out.println("Invalid message: "+msg);
@@ -224,13 +247,56 @@ public class Node {
 //    }
 
 
+    public static HashMap<Integer, AddrPair> parseConfigFile(String fname) {
+        HashMap<Integer, AddrPair> addrs = new HashMap<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(fname))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] s = line.split("\\s", 3);
+                AddrPair t = new AddrPair(s[1], Integer.parseInt(s[2]));
+                addrs.put(Integer.parseInt(s[0]), t);
+            }
+        }
+        catch (IOException e) {
+            System.err.println(e);
+        }
+        return  addrs;
+    }
+
+    public void initializeNeighbors(String fname, HashMap<Integer, AddrPair> addrs) {
+        HashMap<Integer, AddrPair> adj = new HashMap<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(fname))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] s = line.split(",");
+                String temp1 = s[0].replace("(","");
+                String temp2 = s[1].replace(")","");
+                int nodeID1 = Integer.parseInt(temp1);
+                int nodeID2 = Integer.parseInt(temp2);
+                if(nodeID1 == ID || nodeID2 == ID) {
+                    int neigh = nodeID1 != ID ? nodeID1 : nodeID2;
+                    adj.put(neigh, addrs.get(neigh));
+                }
+            }
+        }
+        catch (IOException e) {
+            System.err.println(e);
+        }
+        neighbors = adj;
+    }
+
     public static void main(String[] args) throws Exception {
-        Node n = new Node(4444, 1, null);
+        if(args.length != 3) {
+            System.out.println("Arguments: <current node id> <tree file> <configuration file>");
+            System.exit(0);
+        }
+
+        int id = Integer.parseInt(args[0]);
+        HashMap<Integer, AddrPair> temp = parseConfigFile(args[2]);
+        Node n = new Node(temp.get(id).port, id);
+        n.initializeNeighbors(args[1], temp);
+
         n.begin();
-//        Thread t = new Thread(n);
-//        Thread t = new Thread(new Node(4444, 1, null);)
-//        t.run();
-//        t.start();
         System.out.println("MADE IT HERE");
         Scanner scan = new Scanner(System.in);
         String com = scan.nextLine();
@@ -242,6 +308,5 @@ public class Node {
         if(com.equals("quit")){
             System.exit(0);
         }
-//        t.join();
     }
 }

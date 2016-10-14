@@ -18,7 +18,7 @@ public class MessageSender {
         return s.toString();
     }
 
-    public static void sendMsg(String senderID, String receiverIP, int receiverPort, String msg){
+    public static void sendMsg(String receiverIP, int receiverPort, String msg){
         try {
             Socket socket = new Socket(receiverIP, receiverPort);
             PrintStream os = new PrintStream(socket.getOutputStream());

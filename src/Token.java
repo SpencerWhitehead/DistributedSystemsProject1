@@ -25,9 +25,13 @@ public class Token {
 
     public boolean getInUse() {return inUse;}
 
+    public boolean isReqQEmpty() {return reqQ.isEmpty();}
+
     public void setInUse(boolean use) {inUse = use;}
 
     public void setAsked(boolean ask) {asked = ask;}
+
+    public void setHolder(int hold) {holder = hold;}
 
     public void request(int nodeID) {reqQ.add(nodeID);}
 
