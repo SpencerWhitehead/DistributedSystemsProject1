@@ -10,6 +10,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+
+
+//*** for an inner class to use the methods of an outer class. Use Node.this.createFile().
+
 //public class Node implements Runnable {
 public class Node {
     private int portNum;	//Port Number on which the Node.java will be Listening to accept connection
