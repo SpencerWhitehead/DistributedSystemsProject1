@@ -161,8 +161,29 @@ public class Node {
 
         public String[] parseMsg(String msg){ return msg.split("|",3); }
 
-        public void handleMsg(String[] msg) {
-
+        public void handleMsg(String msg) {
+            String[] m = parseMsg(msg);
+            switch (m[0]){
+                case "NEW":
+                    System.out.println("Creating "+m[2]+" file");
+                    createFile(m[1], Integer.parseInt(m[2]));
+                    break;
+                case "DEL":
+                    System.out.println("Deleting file");
+                    deleteFile(m[2]);
+                    break;
+                case "REQ":
+                    System.out.println("Deleting file");
+                    deleteFile(m[2]);
+                    break;
+                case "TOK":
+                    System.out.println("Deleting file");
+                    deleteFile(m[2]);
+                    break;
+                default:
+                    System.out.println("Invalid message: "+msg);
+                    break;
+            }
         }
 
         public void run(){
@@ -171,8 +192,10 @@ public class Node {
 
                 is = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 String msg = is.readLine();
-//                os = new PrintStream(socket.getOutputStream());
 
+
+//                os = new PrintStream(socket.getOutputStream());
+//
 //                while(true){
 //                    String s = is.readLine();
 //                    System.out.println(s);
@@ -181,7 +204,7 @@ public class Node {
 //                    break;
 //                }
                 is.close();
-                os.close();
+//                os.close();
                 socket.close();
             }
             catch (IOException e){
@@ -216,6 +239,9 @@ public class Node {
             com = scan.nextLine();
         }
         scan.close();
+        if(com.equals("quit")){
+            System.exit(0);
+        }
 //        t.join();
     }
 }

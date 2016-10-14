@@ -8,11 +8,23 @@ public class MessageSender {
 
     public MessageSender() {}
 
+    public static String formatMsg(String command, int nodeID, String data){
+        StringBuilder s = new StringBuilder();
+        s.append(command);
+        s.append("|");
+        s.append(nodeID);
+        s.append("|");
+        s.append(data);
+        return s.toString();
+    }
+
     public static void sendMsg(String senderID, String receiverIP, int receiverPort, String msg){
         try {
             Socket socket = new Socket(receiverIP, receiverPort);
             PrintStream os = new PrintStream(socket.getOutputStream());
             os.println(msg);
+            os.close();
+            socket.close();
         }
         catch (IOException e) {
             System.err.println(e);
