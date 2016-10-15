@@ -118,6 +118,8 @@ public class Node {
             else {
                 String msg = MessageSender.formatMsg("TOK", t.getHolder(), fname, t.getContents());
                 MessageSender.sendMsg(neighbors.get(t.getHolder()).addr, neighbors.get(t.getHolder()).port, msg);
+                t.releaseContents();
+                tokens.put(fname, t);
             }
         }
     }
@@ -319,14 +321,14 @@ public class Node {
             String[] m = parseMsg(msg);
             switch (m[0]){
                 case "NEW":
-                    System.out.println("Creating file: "+m[2]);
                     if(!Node.this.tokens.containsKey(m[2])) {
+                        System.out.println("Creating file: "+m[2]);
                         Node.this.createFile(m[2], Integer.parseInt(m[1]));
                     }
                     break;
                 case "DEL":
-                    System.out.println("Deleting file: "+m[2]);
                     if(Node.this.tokens.containsKey(m[2])) {
+                        System.out.println("Deleting file: "+m[2]);
                         Node.this.deleteFile(m[2]);
                     }
                     break;
