@@ -25,6 +25,8 @@ public class Token {
 
     public boolean getInUse() {return inUse;}
 
+    public String getContents() {return contents;}
+
     public boolean isReqQEmpty() {return reqQ.isEmpty();}
 
     public void setInUse(boolean use) {inUse = use;}
@@ -33,11 +35,11 @@ public class Token {
 
     public void setHolder(int hold) {holder = hold;}
 
+    public void setContents(String data) {contents = data;}
+
     public void request(int nodeID) {reqQ.add(nodeID);}
 
     public Integer deq() {return reqQ.poll();}
-
-    public String getContents() {return contents;}
 
     public void appendContents(String toAppend) {
         StringBuilder s = new StringBuilder();

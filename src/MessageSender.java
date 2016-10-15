@@ -8,13 +8,17 @@ public class MessageSender {
 
     public MessageSender() {}
 
-    public static String formatMsg(String command, int nodeID, String data){
+    public static String formatMsg(String command, int nodeID, String fname, String data){
         StringBuilder s = new StringBuilder();
         s.append(command);
         s.append("|");
         s.append(nodeID);
         s.append("|");
-        s.append(data);
+        s.append(fname);
+        s.append("|");
+        if (data != null){
+            s.append(data);
+        }
         return s.toString();
     }
 

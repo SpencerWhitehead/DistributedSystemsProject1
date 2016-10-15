@@ -30,29 +30,31 @@ public class Node {
         this.ID = ident;
     }
 
-//    public void initializeNeighbors(HashMap<Integer, AddrPair> addrs)
-
-    public void createFile(String fname, int nodeID) {
+    private void createFile(String fname, int nodeID) {
         if (!tokens.containsKey(fname)) {
             Token t = new Token(fname, nodeID);
-            t.setInUse(true);
             tokens.put(fname, t);
-            tokens.get(fname).setInUse(false);
             System.out.println("Created file: "+fname);
+            relayToNeighbors("NEW", fname);
         }
     }
 
-    public void deleteFile(String fname) {
+    private void deleteFile(String fname) {
         if (tokens.containsKey(fname)) {
             Token t = tokens.remove(fname);
             System.out.println("Deleted file: "+fname);
+            relayToNeighbors("DEL", fname);
         }
     }
 
-    public void appendFile(String fname, String toAdd) {
+    private void appendFile(String fname, String toAdd) {
         if (tokens.containsKey(fname)) {
-            Token t = tokens.remove(fname);
+//            Token t = tokens.remove(fname);
+            Token t = tokens.get(fname);
+            t.setInUse(true);
+            tokens.put(fname, t);
             t.appendContents(toAdd);
+            t.setInUse(false);
             tokens.put(fname, t);
             System.out.println("Appended to file: "+fname);
         }
@@ -60,8 +62,13 @@ public class Node {
 
     public void readFile(String fname) {
         if (tokens.containsKey(fname)) {
+            Token t = tokens.get(fname);
+            t.setInUse(true);
+            tokens.put(fname, t);
             System.out.println("Reading "+fname+":");
             System.out.println(tokens.get(fname).getContents());
+            t.setInUse(false);
+            tokens.put(fname, t);
         }
     }
 
@@ -72,9 +79,10 @@ public class Node {
             t.setAsked(false);
             if (t.getHolder() == ID) {
                 t.setInUse(true);
+                tokens.put(fname, t);
             }
             else {
-                String msg = MessageSender.formatMsg("TOK", t.getHolder(), t.getContents());
+                String msg = MessageSender.formatMsg("TOK", t.getHolder(), t.getContents(), null);
                 MessageSender.sendMsg(neighbors.get(t.getHolder()).addr, neighbors.get(t.getHolder()).port, msg);
             }
         }
@@ -83,15 +91,44 @@ public class Node {
     private void sendRequest(String fname) {
         Token t = tokens.get(fname);
         if (t.getHolder() != ID && !t.isReqQEmpty() && !t.getAsked()) {
-            String msg = MessageSender.formatMsg("REQ", ID, fname);
+            String msg = MessageSender.formatMsg("REQ", ID, fname, null);
         }
     }
 
-    public String[] parseCommand(String com){
+    // Add node to token request queue. Can be used when another
+    // node requests the token or when this node wants requests
+    // the token.
+    private void onReqReceipt(String fname, int nodeID) {
+        Token t = Node.this.tokens.get(fname);
+        t.request(nodeID);
+        tokens.put(fname, t);
+        assignToken(fname);
+        sendRequest(fname);
+    }
+
+    private void relayToNeighbors(String command, String fname){
+        String msg = MessageSender.formatMsg(command, ID, fname, null);
+        for(Map.Entry<Integer, AddrPair> entry : neighbors.entrySet()) {
+            String addr = entry.getValue().addr;
+            int port = entry.getValue().port;
+            MessageSender.sendMsg(addr, port, msg);
+        }
+    }
+
+//    private void relayToNeighbors(String command, int nodeID, String fname){
+//        String msg = MessageSender.formatMsg(command, nodeID, fname, null);
+//        for(Map.Entry<Integer, AddrPair> entry : neighbors.entrySet()) {
+//            String addr = entry.getValue().addr;
+//            int port = entry.getValue().port;
+//            MessageSender.sendMsg(addr, port, msg);
+//        }
+//    }
+
+    private String[] parseCommand(String com){
         return com.split("\\s",3);
     }
 
-    public void runCommand(String command, String fname, String contents){
+    private void runCommand(String command, String fname, String contents){
         switch (command){
             case "create":
                 System.out.println("Creating file");
@@ -182,26 +219,34 @@ public class Node {
 
         public ConnectHandler(Socket socket) {this.socket = socket;}
 
-        public String[] parseMsg(String msg){ return msg.split("|",3); }
+        private String[] parseMsg(String msg){ return msg.split("\\|",4); }
 
-        public void handleMsg(String msg) {
+        private void onTokReceipt(String fname, String data) {
+            Token t = tokens.get(fname);
+            t.setContents(data);
+            t.setHolder(ID);
+            tokens.put(fname, t);
+        }
+
+        private void handleMsg(String msg) {
             String[] m = parseMsg(msg);
             switch (m[0]){
                 case "NEW":
                     System.out.println("Creating "+m[2]+" file");
-                    Node.this.createFile(m[1], Integer.parseInt(m[2]));
+                    Node.this.createFile(m[2], Integer.parseInt(m[1]));
                     break;
                 case "DEL":
                     System.out.println("Deleting file");
                     Node.this.deleteFile(m[2]);
+                    Node.this.relayToNeighbors("DEL", m[2]);
                     break;
                 case "REQ":
                     System.out.println("Deleting file");
-                    Node.this.deleteFile(m[2]);
+                    Node.this.onReqReceipt(m[2], Integer.parseInt(m[1]));
                     break;
                 case "TOK":
                     System.out.println("Deleting file");
-                    Node.this.deleteFile(m[2]);
+                    onTokReceipt(m[2], m[3]);
                     break;
                 default:
                     System.out.println("Invalid message: "+msg);
@@ -215,6 +260,7 @@ public class Node {
 
                 is = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 String msg = is.readLine();
+                System.out.println(msg);
 
 
 //                os = new PrintStream(socket.getOutputStream());
@@ -290,23 +336,42 @@ public class Node {
             System.out.println("Arguments: <current node id> <tree file> <configuration file>");
             System.exit(0);
         }
+//        String msg = MessageSender.formatMsg("TOK", 1, "FILENAME", "asdflkjasdflkj");
+////        String msg = "TOK|2|FILENAME|asdlkfjasdoif|jwef";
+//        String[] parsed =  msg.split("\\|",4);
+//        System.out.println(parsed[0]);
+//        System.out.println(parsed[1]);
+//        System.out.println(parsed[2]);
+//        System.out.println(parsed[3]);
+//
+//        msg = MessageSender.formatMsg("NEW", 2, "FILENAME", null);
+////        msg = "NEW|2|FILENAME|";
+//        parsed =  msg.split("\\|");
+//        System.out.println(parsed[0]);
+//        System.out.println(parsed[1]);
+//        System.out.println(parsed[2]);
+////
+//        System.out.println(parsed.length);
 
-        int id = Integer.parseInt(args[0]);
-        HashMap<Integer, AddrPair> temp = parseConfigFile(args[2]);
-        Node n = new Node(temp.get(id).port, id);
-        n.initializeNeighbors(args[1], temp);
+//        int id = Integer.parseInt(args[0]);
+//        HashMap<Integer, AddrPair> temp = parseConfigFile(args[2]);
+//        Node n = new Node(temp.get(id).port, id);
+//        n.initializeNeighbors(args[1], temp);
+//
+//        n.begin();
+//
+//        String msg = MessageSender.formatMsg("REQ", 2, "FILENAME");
+//        MessageSender.sendMsg("localhost", 4444, msg);
 
-        n.begin();
-        System.out.println("MADE IT HERE");
-        Scanner scan = new Scanner(System.in);
-        String com = scan.nextLine();
-        while(!com.equals("quit")){
-            n.takeCommand(com);
-            com = scan.nextLine();
-        }
-        scan.close();
-        if(com.equals("quit")){
-            System.exit(0);
-        }
+//        Scanner scan = new Scanner(System.in);
+//        String com = scan.nextLine();
+//        while(!com.equals("quit")){
+//            n.takeCommand(com);
+//            com = scan.nextLine();
+//        }
+//        scan.close();
+//        if(com.equals("quit")){
+//            System.exit(0);
+//        }
     }
 }
