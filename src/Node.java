@@ -177,6 +177,32 @@ public class Node {
         }
     }
 
+    /* Determine if incoming command is valid. */
+    private boolean validateCommand(String command) {
+        boolean valid = false;
+        switch (command){
+            /* If create is command, then it is valid. */
+            case "create":
+                valid = true;
+                break;
+            /* If delete is command, then it is valid. */
+            case "delete":
+                valid = true;
+                break;
+            /* If read is command, then it is valid. */
+            case "read":
+                valid = true;
+                break;
+            /* If append is command, then it is valid. */
+            case "append":
+                valid = true;
+                break;
+            default:
+                break;
+        }
+        return valid;
+    }
+
     /* Parse incoming command. */
     private String[] parseCommand(String com){
         return com.split("\\s",3);
@@ -185,15 +211,19 @@ public class Node {
     /* Execute a given command on token. */
     private void runCommand(String command, String fname, String contents){
         switch (command){
+            /* If create is command, then create file. */
             case "create":
                 createFile(fname, ID);
                 break;
+            /* If delete is command, then delete file. */
             case "delete":
                 deleteFile(fname, ID);
                 break;
+            /* If read is command, then read file. */
             case "read":
                 readFile(fname);
                 break;
+            /* If append is command, then append to file. */
             case "append":
                 if(contents != null) {
                     appendFile(fname, contents);
@@ -242,18 +272,13 @@ public class Node {
         public void run(){
             String[] com = parseCommand(command);
             /* If create is command, then try to create file. */
-            if(com.length == 2 || com.length == 3){
-                if(com.length == 2 && com[0].equals("create")) {
-                    runCommand(com[0], com[1], null);
-                }
-                else {
-                    /* Otherwise, request token. */
-                    addCommand(com[1], com);
-                    Node.this.onReq(com[1], Node.this.ID);
-                }
+            if(com.length == 2 && com[0].equals("create")) {
+                runCommand(com[0], com[1], null);
             }
             else {
-                System.err.println("\tInvalid command: "+command);
+                    /* Otherwise, request token. */
+                addCommand(com[1], com);
+                Node.this.onReq(com[1], Node.this.ID);
             }
         }
     }
@@ -261,7 +286,7 @@ public class Node {
     /* Parse and create thread to handle command. */
     public void takeCommand(String command){
         String[] com = parseCommand(command);
-        if(com.length == 2 || com.length == 3){
+        if(validateCommand(com[0]) && (com.length == 2 || com.length == 3)){
             Thread commandThread = new Thread(new CommandHandler(command));
             commandThread.run();
         }
