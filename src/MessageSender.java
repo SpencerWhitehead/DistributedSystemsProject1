@@ -1,13 +1,17 @@
+/**
+ * Spencer Whitehead, whites5
+ * Vipula Rawte, rawtev
+ */
+
 import java.io.*;
 import java.net.Socket;
 
-/**
- * Created by spencerwhitehead on 10/13/16.
- */
+/* Class for formatting and sending message between nodes. */
 public class MessageSender {
 
     public MessageSender() {}
 
+    /* Format message string. */
     public static String formatMsg(String command, int nodeID, String fname, String data){
         StringBuilder s = new StringBuilder();
         s.append(command);
@@ -22,33 +26,13 @@ public class MessageSender {
         return s.toString();
     }
 
+    /* Send message to other node. */
     public static void sendMsg(String receiverIP, int receiverPort, String msg){
         try {
             Socket socket = new Socket(receiverIP, receiverPort);
             PrintStream os = new PrintStream(socket.getOutputStream());
             os.println(msg);
             os.close();
-            socket.close();
-        }
-        catch (IOException e) {
-            System.err.println(e);
-        }
-    }
-
-    public static void sendToken(String senderID, String receiverIP, int receiverPort, String fname){
-        try {
-            Socket socket = new Socket(receiverIP, receiverPort);
-            File f = new File(fname);
-            long len = f.length();
-            byte[] fbytes = new byte[16*1024];
-            InputStream is = new FileInputStream(f);
-            OutputStream os = socket.getOutputStream();
-            int count;
-            while ((count = is.read(fbytes)) > 0) {
-                os.write(fbytes, 0, count);
-            }
-            os.close();
-            is.close();
             socket.close();
         }
         catch (IOException e) {

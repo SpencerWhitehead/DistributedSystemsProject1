@@ -1,5 +1,6 @@
 /**
- * Created by spencerwhitehead on 10/10/16.
+ * Spencer Whitehead, whites5
+ * Vipula Rawte, rawtev
  */
 
 import java.io.*;
@@ -11,22 +12,25 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-
-
-//*** for an inner class to use the methods of an outer class. Use Node.this.createFile().
-
+/*
+*  Class to perform functionalities of a node in Raymond's algorithm.
+*  Throughout this file and others, the words token and file are used
+*  interchangeably. As in each file is a token and is represented by a
+*  token object.
+*/
 public class Node {
-    private int portNum;	//Port Number on which the Node.java will be Listening to accept connection
-    private int ID;	        //NodeID of the node
-    private HashMap<Integer, AddrPair> neighbors = new HashMap<>(); // Neighbor node IDs, IP addresses, and port (nodeID, (IP,port))
-    private ConcurrentHashMap<String, Token> tokens = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<String, Queue<String[]>> commands = new ConcurrentHashMap<>(); // File name to commands to run
+    private int portNum;	// Port number on which node will be listening to accept connections
+    private int ID;	        // ID of node
+    private HashMap<Integer, AddrPair> neighbors = new HashMap<>(); // Map to store IP addresses and port numbers of neighbor nodes.
+    private ConcurrentHashMap<String, Token> tokens = new ConcurrentHashMap<>(); // Map to store token objects.
+    private ConcurrentHashMap<String, Queue<String[]>> commands = new ConcurrentHashMap<>(); // Map to store what commands should be ran on each file.
 
     public Node(int port, int ident) {
         this.portNum = port;
         this.ID = ident;
     }
 
+    /* Create file. */
     private void createFile(String fname, int nodeID) {
         if (!tokens.containsKey(fname)) {
             Token t = new Token(fname, nodeID);
@@ -36,13 +40,14 @@ public class Node {
             s.append("\tNumber of tokens: ");
             s.append(tokens.size());
             System.out.println(s.toString());
-            relayToNeighbors("NEW", fname, nodeID);
+            relayToNeighbors("NEW", fname, nodeID); // Notify neighboring nodes.
         }
         else {
             System.err.println("\tError: file already exists, "+fname);
         }
     }
 
+    /* Delete file. */
     private void deleteFile(String fname, int nodeID) {
         if (tokens.containsKey(fname)) {
             Token t = tokens.remove(fname);
@@ -51,13 +56,14 @@ public class Node {
             s.append("\tNumber of tokens: ");
             s.append(tokens.size());
             System.out.println(s.toString());
-            relayToNeighbors("DEL", fname, nodeID);
+            relayToNeighbors("DEL", fname, nodeID); // Notify neighboring nodes.
         }
         else {
             System.err.println("\tError: no such file, "+fname);
         }
     }
 
+    /* Append to specified file. */
     private void appendFile(String fname, String toAdd) {
         if (tokens.containsKey(fname)) {
             Token t = tokens.get(fname);
@@ -70,6 +76,7 @@ public class Node {
         }
     }
 
+    /* Read file. */
     private void readFile(String fname) {
         if (tokens.containsKey(fname)) {
             Token t = tokens.get(fname);
@@ -81,6 +88,7 @@ public class Node {
         }
     }
 
+    /* Iterate through and execute commands. */
     private void performCommands(Queue<String[]> comQ) {
         while(!comQ.isEmpty()) {
             String[] currentCom = comQ.poll();
@@ -93,6 +101,7 @@ public class Node {
         }
     }
 
+    /* Assign token to node. */
     private void assignToken(String fname) {
         Token t = tokens.get(fname);
         if (t.getHolder() == ID && !t.getInUse() && !t.isReqQEmpty()) {
@@ -103,12 +112,13 @@ public class Node {
                 t.setInUse(true);
                 tokens.put(fname, t);
 
-                // Do something with the token
+                /* Execute commands on token. */
                 System.out.println("\tGot "+fname+" token. Running commands...");
                 Queue<String[]> comQ = commands.remove(fname);
                 performCommands(comQ);
             }
             else {
+                /* Send token to next node. */
                 String msg = MessageSender.formatMsg("TOK", ID, fname, t.getContents());
                 MessageSender.sendMsg(neighbors.get(t.getHolder()).addr, neighbors.get(t.getHolder()).port, msg);
                 t.releaseContents();
@@ -117,6 +127,7 @@ public class Node {
         }
     }
 
+    /* Send request to node with token. */
     private void sendRequest(String fname) {
         if(tokens.containsKey(fname)) {
             Token t = tokens.get(fname);
@@ -130,9 +141,7 @@ public class Node {
         }
     }
 
-    // Add node to token request queue. Can be used when another
-    // node requests the token or when this node wants requests
-    // the token.
+    /* Add node to token request queue. */
     private void onReq(String fname, int nodeID) {
         if(tokens.containsKey(fname)) {
             System.out.println("\tRequesting "+fname);
@@ -142,6 +151,7 @@ public class Node {
             assignToken(fname);
             sendRequest(fname);
 
+            /* If the token has not been delete, then release it.*/
             if(tokens.containsKey(fname)) {
                 t = tokens.get(fname);
                 if (t.getInUse()) {
@@ -154,6 +164,7 @@ public class Node {
         }
     }
 
+    /* Release token. */
     private void onRelease(String fname) {
         Token t = tokens.get(fname);
         t.setInUse(false);
@@ -163,6 +174,7 @@ public class Node {
         System.out.println("\tReleased "+fname);
     }
 
+    /* Send message to all neighbors. */
     private void relayToNeighbors(String command, String fname, int prevID){
         String msg = MessageSender.formatMsg(command, ID, fname, null);
         for(Map.Entry<Integer, AddrPair> entry : neighbors.entrySet()) {
@@ -178,10 +190,12 @@ public class Node {
         }
     }
 
+    /* Parse incoming command. */
     private String[] parseCommand(String com){
         return com.split("\\s",3);
     }
 
+    /* Execute a given command on token. */
     private void runCommand(String command, String fname, String contents){
         switch (command){
             case "create":
@@ -204,6 +218,7 @@ public class Node {
         }
     }
 
+    /* Parse and create thread to handle command. */
     public void takeCommand(String command){
         String[] com = parseCommand(command);
         if(com.length == 2 || com.length == 3){
@@ -215,9 +230,10 @@ public class Node {
         }
     }
 
+    /* Start server and accept connections. Each connection is handled in a thread. */
     public void begin() {
 
-        final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(10);
+        final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(20);
 
         Runnable serverTask = new Runnable() {
             @Override
@@ -239,15 +255,17 @@ public class Node {
         serverThread.start();
     }
 
+    /* Class to handle incoming messages. */
     public class ConnectHandler implements Runnable {
-        // Handle socket connection and receive and send messages
-        private Socket socket = null;
-        private BufferedReader is = null;
+        private Socket socket = null; // Socket of incoming connection.
+        private BufferedReader is = null; // Buffer to read incoming message.
 
         public ConnectHandler(Socket socket) {this.socket = socket;}
 
+        /* Parse incoming message. */
         private String[] parseMsg(String msg){ return msg.split("\\|",4); }
 
+        /* Handle when a token is received. */
         private void onTokReceipt(String fname, String data) {
             Token t = tokens.get(fname);
             t.setContents(data);
@@ -257,25 +275,30 @@ public class Node {
             Node.this.sendRequest(fname);
         }
 
+        /* Parse and perform actions based on message. */
         private void handleMsg(String msg) {
             String[] m = parseMsg(msg);
             switch (m[0]){
+                /* If NEW is keyword, then create file. */
                 case "NEW":
                     if(!Node.this.tokens.containsKey(m[2])) {
                         System.out.println("\tCreating file: "+m[2]);
                         Node.this.createFile(m[2], Integer.parseInt(m[1]));
                     }
                     break;
+                /* If DEL is keyword, then delete file. */
                 case "DEL":
                     if(Node.this.tokens.containsKey(m[2])) {
                         System.out.println("\tDeleting file: "+m[2]);
                         Node.this.deleteFile(m[2], Integer.parseInt(m[1]));
                     }
                     break;
+                /* If REQ is keyword, then request token. */
                 case "REQ":
                     System.out.println("\tReceived request for file: "+m[2]);
                     Node.this.onReq(m[2], Integer.parseInt(m[1]));
                     break;
+                /* If TOK is keyword, then handle token. */
                 case "TOK":
                     System.out.println("\tReceived token: "+m[2]);
                     onTokReceipt(m[2], m[3]);
@@ -286,6 +309,7 @@ public class Node {
             }
         }
 
+        /* Read in and handle message. */
         public void run(){
             try {
                 is = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -301,12 +325,13 @@ public class Node {
         }
     }
 
+    /* Class to handle incoming commands. */
     public class CommandHandler implements Runnable {
-        // Handle incoming commands
         String command;
 
         public CommandHandler(String newCom) {command = newCom;}
 
+        /* Add command to command queue for file. */
         public void addCommand(String fname, String[] com) {
             if (Node.this.commands.containsKey(com)) {
                 Queue<String[]> q = Node.this.commands.get(com);
@@ -320,13 +345,16 @@ public class Node {
             }
         }
 
+        /* Parse and handle command. */
         public void run(){
             String[] com = parseCommand(command);
+            /* If create is command, then try to create file. */
             if(com.length == 2 || com.length == 3){
                 if(com.length == 2 && com[0].equals("create")) {
                     runCommand(com[0], com[1], null);
                 }
                 else {
+                    /* Otherwise, request token. */
                     addCommand(com[1], com);
                     Node.this.onReq(com[1], Node.this.ID);
                 }
@@ -337,7 +365,7 @@ public class Node {
         }
     }
 
-
+    /* Parse configuration file with node IP addresses and ports. */
     public static HashMap<Integer, AddrPair> parseConfigFile(String fname) {
         HashMap<Integer, AddrPair> addrs = new HashMap<>();
         try (BufferedReader br = new BufferedReader(new FileReader(fname))) {
@@ -354,6 +382,7 @@ public class Node {
         return  addrs;
     }
 
+    /* Parse tree file and initialize data structure to store neighboring nodes. */
     public void initializeNeighbors(String fname, HashMap<Integer, AddrPair> addrs) {
         HashMap<Integer, AddrPair> adj = new HashMap<>();
         try (BufferedReader br = new BufferedReader(new FileReader(fname))) {
