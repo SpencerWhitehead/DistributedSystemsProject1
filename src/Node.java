@@ -19,14 +19,8 @@ public class Node {
     private int portNum;	//Port Number on which the Node.java will be Listening to accept connection
     private int ID;	        //NodeID of the node
     private HashMap<Integer, AddrPair> neighbors = new HashMap<>(); // Neighbor node IDs, IP addresses, and port (nodeID, (IP,port))
-//    private HashMap<Integer, String> neighbors = new HashMap<>(); // Neighbor node IDs and IP addresses (nodeID, IP)
-//    private HashMap<String, Integer> holders = new HashMap(); // Holders of each file (filename, holderID)
-//    private HashMap<String, Boolean> asked = new HashMap(); // Map to store which files have been requested (filename, asked)
-//    private HashMap<String, Boolean> state = new HashMap(); // Map to store which files are being used by this node (filename, inUse)
-//    private HashMap<String, Queue<Integer>> reqQ = new HashMap(); // Map to store request queue for each file
     private ConcurrentHashMap<String, Token> tokens = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, Queue<String[]>> commands = new ConcurrentHashMap<>(); // File name to commands to run
-//    private ConcurrentHashMap<String, Queue<String>> commands = new ConcurrentHashMap<>();
 
     public Node(int port, int ident) {
         this.portNum = port;
@@ -37,54 +31,53 @@ public class Node {
         if (!tokens.containsKey(fname)) {
             Token t = new Token(fname, nodeID);
             tokens.put(fname, t);
-            System.out.println("Created file: "+fname);
-            System.out.println(tokens.size());
-            relayToNeighbors("NEW", fname);
+            System.out.println("\tCreated file: "+fname);
+            StringBuilder s = new StringBuilder();
+            s.append("\tNumber of tokens: ");
+            s.append(tokens.size());
+            System.out.println(s.toString());
+            relayToNeighbors("NEW", fname, nodeID);
         }
         else {
-            System.err.println("Error: file already exists, "+fname);
+            System.err.println("\tError: file already exists, "+fname);
         }
     }
 
-    private void deleteFile(String fname) {
+    private void deleteFile(String fname, int nodeID) {
         if (tokens.containsKey(fname)) {
             Token t = tokens.remove(fname);
-            System.out.println("Deleted file: "+fname);
-            System.out.println(tokens.size());
-            relayToNeighbors("DEL", fname);
+            System.out.println("\tDeleted file: "+fname);
+            StringBuilder s = new StringBuilder();
+            s.append("\tNumber of tokens: ");
+            s.append(tokens.size());
+            System.out.println(s.toString());
+            relayToNeighbors("DEL", fname, nodeID);
         }
         else {
-            System.err.println("Error: no such file, "+fname);
+            System.err.println("\tError: no such file, "+fname);
         }
     }
 
     private void appendFile(String fname, String toAdd) {
         if (tokens.containsKey(fname)) {
             Token t = tokens.get(fname);
-//            t.setInUse(true);
-//            tokens.put(fname, t);
             t.appendContents(toAdd);
-//            t.setInUse(false);
             tokens.put(fname, t);
-            System.out.println("Appended to file: "+fname);
+            System.out.println("\tAppended to file: "+fname);
         }
         else {
-            System.err.println("Error: no such file, "+fname);
+            System.err.println("\tError: no such file, "+fname);
         }
     }
 
     private void readFile(String fname) {
         if (tokens.containsKey(fname)) {
             Token t = tokens.get(fname);
-//            t.setInUse(true);
-//            tokens.put(fname, t);
-            System.out.println("Reading "+fname+":");
-            System.out.println(tokens.get(fname).getContents());
-//            t.setInUse(false);
-//            tokens.put(fname, t);
+            System.out.println("\tReading "+fname+":");
+            System.out.println("\t\t"+tokens.get(fname).getContents());
         }
         else {
-            System.err.println("Error: no such file, "+fname);
+            System.err.println("\tError: no such file, "+fname);
         }
     }
 
@@ -111,12 +104,12 @@ public class Node {
                 tokens.put(fname, t);
 
                 // Do something with the token
-                System.out.println("Got "+fname+" token. Running commands...");
+                System.out.println("\tGot "+fname+" token. Running commands...");
                 Queue<String[]> comQ = commands.remove(fname);
                 performCommands(comQ);
             }
             else {
-                String msg = MessageSender.formatMsg("TOK", t.getHolder(), fname, t.getContents());
+                String msg = MessageSender.formatMsg("TOK", ID, fname, t.getContents());
                 MessageSender.sendMsg(neighbors.get(t.getHolder()).addr, neighbors.get(t.getHolder()).port, msg);
                 t.releaseContents();
                 tokens.put(fname, t);
@@ -128,7 +121,7 @@ public class Node {
         if(tokens.containsKey(fname)) {
             Token t = tokens.get(fname);
             if (t.getHolder() != ID && !t.isReqQEmpty() && !t.getAsked()) {
-                System.out.println("Sending request for " + fname);
+                System.out.println("\tSending request for " + fname);
                 String msg = MessageSender.formatMsg("REQ", ID, fname, null);
                 MessageSender.sendMsg(neighbors.get(t.getHolder()).addr, neighbors.get(t.getHolder()).port, msg);
                 t.setAsked(true);
@@ -142,7 +135,7 @@ public class Node {
     // the token.
     private void onReq(String fname, int nodeID) {
         if(tokens.containsKey(fname)) {
-            System.out.println("Requesting "+fname);
+            System.out.println("\tRequesting "+fname);
             Token t = tokens.get(fname);
             t.request(nodeID);
             tokens.put(fname, t);
@@ -157,7 +150,7 @@ public class Node {
             }
         }
         else {
-            System.err.println("Error: no such file, "+fname);
+            System.err.println("\tError: no such file, "+fname);
         }
     }
 
@@ -167,27 +160,23 @@ public class Node {
         tokens.put(fname, t);
         assignToken(fname);
         sendRequest(fname);
-        System.out.println("Released "+fname);
+        System.out.println("\tReleased "+fname);
     }
 
-    private void relayToNeighbors(String command, String fname){
-        System.out.println("Notifying neighbors");
+    private void relayToNeighbors(String command, String fname, int prevID){
         String msg = MessageSender.formatMsg(command, ID, fname, null);
         for(Map.Entry<Integer, AddrPair> entry : neighbors.entrySet()) {
-            String addr = entry.getValue().addr;
-            int port = entry.getValue().port;
-            MessageSender.sendMsg(addr, port, msg);
+            if (!entry.getKey().equals(prevID)) {
+                StringBuilder s = new StringBuilder();
+                s.append("\tNotifying node ");
+                s.append(entry.getKey());
+                System.out.println(s.toString());
+                String addr = entry.getValue().addr;
+                int port = entry.getValue().port;
+                MessageSender.sendMsg(addr, port, msg);
+            }
         }
     }
-
-//    private void relayToNeighbors(String command, int nodeID, String fname){
-//        String msg = MessageSender.formatMsg(command, nodeID, fname, null);
-//        for(Map.Entry<Integer, AddrPair> entry : neighbors.entrySet()) {
-//            String addr = entry.getValue().addr;
-//            int port = entry.getValue().port;
-//            MessageSender.sendMsg(addr, port, msg);
-//        }
-//    }
 
     private String[] parseCommand(String com){
         return com.split("\\s",3);
@@ -199,7 +188,7 @@ public class Node {
                 createFile(fname, ID);
                 break;
             case "delete":
-                deleteFile(fname);
+                deleteFile(fname, ID);
                 break;
             case "read":
                 readFile(fname);
@@ -210,23 +199,10 @@ public class Node {
                 }
                 break;
             default:
-                System.err.println("Invalid command: "+command);
+                System.err.println("\tInvalid command: "+command);
                 break;
         }
     }
-
-//    public void addCommand(String fname, String[] com) {
-//        if (commands.containsKey(com)) {
-//            Queue<String[]> q = commands.get(com);
-//            q.add(com);
-//            commands.put(fname, q);
-//        }
-//        else {
-//            Queue q = new ConcurrentLinkedQueue();
-//            q.add(com);
-//            commands.put(fname, q);
-//        }
-//    }
 
     public void takeCommand(String command){
         String[] com = parseCommand(command);
@@ -235,22 +211,9 @@ public class Node {
             commandThread.run();
         }
         else {
-            System.err.println("Invalid command: "+command);
+            System.err.println("\tInvalid command: "+command);
         }
     }
-
-//    public void takeCommand(String command){
-//        String[] com = parseCommand(command);
-//        if(com.length == 2){
-//            runCommand(com[0], com[1], null);
-//        }
-//        else if(com.length == 3){
-//            runCommand(com[0], com[1], com[2]);
-//        }
-//        else {
-//            System.err.println("Invalid command: "+command);
-//        }
-//    }
 
     public void begin() {
 
@@ -276,29 +239,6 @@ public class Node {
         serverThread.start();
     }
 
-//    public void run(){
-//        try(ServerSocket serve = new ServerSocket(portNum)){
-//            int i = 0;
-//            while(true){
-//                if (i < 3) {
-//                    System.out.println("WAITING FOR CONNECTION");
-//                }
-//                else{
-//                    break;
-//                }
-//                Socket sock = serve.accept();
-//                ConnectHandler c = new ConnectHandler(sock);
-//                System.out.println("GOT A CONNECTION!");
-//                c.run();
-//                i++;
-//            }
-//        }
-//        catch (IOException e) {
-//            System.err.println("Could not listen on port " + portNum);
-//            System.exit(-1);
-//        }
-//    }
-
     public class ConnectHandler implements Runnable {
         // Handle socket connection and receive and send messages
         private Socket socket = null;
@@ -322,26 +262,26 @@ public class Node {
             switch (m[0]){
                 case "NEW":
                     if(!Node.this.tokens.containsKey(m[2])) {
-                        System.out.println("Creating file: "+m[2]);
+                        System.out.println("\tCreating file: "+m[2]);
                         Node.this.createFile(m[2], Integer.parseInt(m[1]));
                     }
                     break;
                 case "DEL":
                     if(Node.this.tokens.containsKey(m[2])) {
-                        System.out.println("Deleting file: "+m[2]);
-                        Node.this.deleteFile(m[2]);
+                        System.out.println("\tDeleting file: "+m[2]);
+                        Node.this.deleteFile(m[2], Integer.parseInt(m[1]));
                     }
                     break;
                 case "REQ":
-                    System.out.println("Received request for file: "+m[2]);
+                    System.out.println("\tReceived request for file: "+m[2]);
                     Node.this.onReq(m[2], Integer.parseInt(m[1]));
                     break;
                 case "TOK":
-                    System.out.println("Received token: "+m[2]);
+                    System.out.println("\tReceived token: "+m[2]);
                     onTokReceipt(m[2], m[3]);
                     break;
                 default:
-                    System.err.println("Invalid message: "+msg);
+                    System.err.println("\tInvalid message: "+msg);
                     break;
             }
         }
@@ -350,21 +290,9 @@ public class Node {
             try {
                 is = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 String msg = is.readLine();
-                System.out.println("Received: "+msg);
+                System.out.println("\tReceived: "+msg);
                 handleMsg(msg);
-
-
-//                os = new PrintStream(socket.getOutputStream());
-//
-//                while(true){
-//                    String s = is.readLine();
-//                    System.out.println(s);
-//                    os.println("GOT IT!");
-//                    System.out.println("SENT MESSAGE!");
-//                    break;
-//                }
                 is.close();
-//                os.close();
                 socket.close();
             }
             catch (IOException e){
@@ -404,7 +332,7 @@ public class Node {
                 }
             }
             else {
-                System.err.println("Invalid command: "+command);
+                System.err.println("\tInvalid command: "+command);
             }
         }
     }
@@ -454,13 +382,11 @@ public class Node {
             System.exit(0);
         }
 
-//        System.out.println("Initializing node...");
         int id = Integer.parseInt(args[0]);
         HashMap<Integer, AddrPair> temp = parseConfigFile(args[2]);
         Node n = new Node(temp.get(id).port, id);
         n.initializeNeighbors(args[1], temp);
         n.begin();
-//        System.out.println("Finished initializing node.");
 
         Scanner scan = new Scanner(System.in);
         String com = scan.nextLine();
