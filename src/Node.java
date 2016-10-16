@@ -76,7 +76,7 @@ public class Node {
         }
     }
 
-    /* Read file. */
+    /* Read file specified file. */
     private void readFile(String fname) {
         if (tokens.containsKey(fname)) {
             Token t = tokens.get(fname);
@@ -88,20 +88,7 @@ public class Node {
         }
     }
 
-    /* Iterate through and execute commands. */
-    private void performCommands(Queue<String[]> comQ) {
-        while(!comQ.isEmpty()) {
-            String[] currentCom = comQ.poll();
-            if(currentCom.length == 2){
-                runCommand(currentCom[0], currentCom[1], null);
-            }
-            else if(currentCom.length == 3){
-                runCommand(currentCom[0], currentCom[1], currentCom[2]);
-            }
-        }
-    }
-
-    /* Assign token to node. */
+    /* Assign token to node from Raymond's algorithm. */
     private void assignToken(String fname) {
         Token t = tokens.get(fname);
         if (t.getHolder() == ID && !t.getInUse() && !t.isReqQEmpty()) {
@@ -127,7 +114,7 @@ public class Node {
         }
     }
 
-    /* Send request to node with token. */
+    /* Send request to node with token from Raymond's algorithm. */
     private void sendRequest(String fname) {
         if(tokens.containsKey(fname)) {
             Token t = tokens.get(fname);
@@ -218,6 +205,59 @@ public class Node {
         }
     }
 
+    /* Iterate through and execute commands. */
+    private void performCommands(Queue<String[]> comQ) {
+        while(!comQ.isEmpty()) {
+            String[] currentCom = comQ.poll();
+            if(currentCom.length == 2){
+                runCommand(currentCom[0], currentCom[1], null);
+            }
+            else if(currentCom.length == 3){
+                runCommand(currentCom[0], currentCom[1], currentCom[2]);
+            }
+        }
+    }
+
+    /* Class to handle incoming commands. */
+    public class CommandHandler implements Runnable {
+        String command;
+
+        public CommandHandler(String newCom) {command = newCom;}
+
+        /* Add command to command queue for file. */
+        public void addCommand(String fname, String[] com) {
+            if (Node.this.commands.containsKey(com)) {
+                Queue<String[]> q = Node.this.commands.get(com);
+                q.add(com);
+                Node.this.commands.put(fname, q);
+            }
+            else {
+                Queue<String[]> q = new ConcurrentLinkedQueue<>();
+                q.add(com);
+                Node.this.commands.put(fname, q);
+            }
+        }
+
+        /* Parse and handle command. */
+        public void run(){
+            String[] com = parseCommand(command);
+            /* If create is command, then try to create file. */
+            if(com.length == 2 || com.length == 3){
+                if(com.length == 2 && com[0].equals("create")) {
+                    runCommand(com[0], com[1], null);
+                }
+                else {
+                    /* Otherwise, request token. */
+                    addCommand(com[1], com);
+                    Node.this.onReq(com[1], Node.this.ID);
+                }
+            }
+            else {
+                System.err.println("\tInvalid command: "+command);
+            }
+        }
+    }
+
     /* Parse and create thread to handle command. */
     public void takeCommand(String command){
         String[] com = parseCommand(command);
@@ -228,31 +268,6 @@ public class Node {
         else {
             System.err.println("\tInvalid command: "+command);
         }
-    }
-
-    /* Start server and accept connections. Each connection is handled in a thread. */
-    public void begin() {
-
-        final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(20);
-
-        Runnable serverTask = new Runnable() {
-            @Override
-            public void run() {
-
-                try {
-                    ServerSocket serverSocket = new ServerSocket(portNum);
-
-                    while (true) {
-                        Socket clientSocket = serverSocket.accept();
-                        clientProcessingPool.submit(new ConnectHandler(clientSocket));
-                    }
-                } catch (IOException e) {
-                    System.err.println("Accept failed.");
-                }
-            }
-        };
-        Thread serverThread = new Thread(serverTask);
-        serverThread.start();
     }
 
     /* Class to handle incoming messages. */
@@ -325,44 +340,29 @@ public class Node {
         }
     }
 
-    /* Class to handle incoming commands. */
-    public class CommandHandler implements Runnable {
-        String command;
+    /* Start server and accept connections. Each connection is handled in a thread. */
+    public void begin() {
 
-        public CommandHandler(String newCom) {command = newCom;}
+        final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(20);
 
-        /* Add command to command queue for file. */
-        public void addCommand(String fname, String[] com) {
-            if (Node.this.commands.containsKey(com)) {
-                Queue<String[]> q = Node.this.commands.get(com);
-                q.add(com);
-                Node.this.commands.put(fname, q);
-            }
-            else {
-                Queue<String[]> q = new ConcurrentLinkedQueue<>();
-                q.add(com);
-                Node.this.commands.put(fname, q);
-            }
-        }
+        Runnable serverTask = new Runnable() {
+            @Override
+            public void run() {
 
-        /* Parse and handle command. */
-        public void run(){
-            String[] com = parseCommand(command);
-            /* If create is command, then try to create file. */
-            if(com.length == 2 || com.length == 3){
-                if(com.length == 2 && com[0].equals("create")) {
-                    runCommand(com[0], com[1], null);
-                }
-                else {
-                    /* Otherwise, request token. */
-                    addCommand(com[1], com);
-                    Node.this.onReq(com[1], Node.this.ID);
+                try {
+                    ServerSocket serverSocket = new ServerSocket(portNum);
+
+                    while (true) {
+                        Socket clientSocket = serverSocket.accept();
+                        clientProcessingPool.submit(new ConnectHandler(clientSocket));
+                    }
+                } catch (IOException e) {
+                    System.err.println("Accept failed.");
                 }
             }
-            else {
-                System.err.println("\tInvalid command: "+command);
-            }
-        }
+        };
+        Thread serverThread = new Thread(serverTask);
+        serverThread.start();
     }
 
     /* Parse configuration file with node IP addresses and ports. */
