@@ -51,6 +51,7 @@ public class Node {
     private void deleteFile(String fname, int nodeID) {
         if (tokens.containsKey(fname)) {
             Token t = tokens.remove(fname);
+            Queue q = commands.remove(fname);
             System.out.println("\tDeleted file: "+fname);
             StringBuilder s = new StringBuilder();
             s.append("\tNumber of tokens: ");
@@ -256,15 +257,16 @@ public class Node {
 
         /* Add command to command queue for file. */
         public void addCommand(String fname, String[] com) {
-            if (Node.this.commands.containsKey(com)) {
-                Queue<String[]> q = Node.this.commands.get(com);
-                q.add(com);
-                Node.this.commands.put(fname, q);
-            }
-            else {
-                Queue<String[]> q = new ConcurrentLinkedQueue<>();
-                q.add(com);
-                Node.this.commands.put(fname, q);
+            if (Node.this.tokens.containsKey(fname)) {
+                if (Node.this.commands.containsKey(com)) {
+                    Queue<String[]> q = Node.this.commands.get(com);
+                    q.add(com);
+                    Node.this.commands.put(fname, q);
+                } else {
+                    Queue<String[]> q = new ConcurrentLinkedQueue<>();
+                    q.add(com);
+                    Node.this.commands.put(fname, q);
+                }
             }
         }
 
