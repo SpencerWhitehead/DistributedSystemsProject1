@@ -258,8 +258,8 @@ public class Node {
         /* Add command to command queue for file. */
         public void addCommand(String fname, String[] com) {
             if (Node.this.tokens.containsKey(fname)) {
-                if (Node.this.commands.containsKey(com)) {
-                    Queue<String[]> q = Node.this.commands.get(com);
+                if (Node.this.commands.containsKey(fname)) {
+                    Queue<String[]> q = Node.this.commands.get(fname);
                     q.add(com);
                     Node.this.commands.put(fname, q);
                 } else {
